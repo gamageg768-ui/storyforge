@@ -612,7 +612,6 @@ export default function ChapterReaderClient({ chapter, storyId }: { chapter: Cha
           title={chapter.title}
           onActiveParagraph={setActiveTTSParagraph}
           startFromRef={ttsStartFromRef}
-          paragraphCount={paragraphs.length}
         />
 
         {/* Prose content */}
