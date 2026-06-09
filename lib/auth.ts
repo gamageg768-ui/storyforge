@@ -32,10 +32,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     jwt({ token, user }) {
       if (user) {
         token.id          = user.id
-        token.avatarColor = (user as any).avatarColor
-        token.bio         = (user as any).bio
+        token.avatarColor = user.avatarColor
+        token.bio         = user.bio
         token.name        = user.name
-        token.isAdmin     = (user as any).isAdmin
+        token.isAdmin     = user.isAdmin
       }
       return token
     },

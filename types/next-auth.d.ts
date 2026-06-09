@@ -11,6 +11,14 @@ declare module 'next-auth' {
       isAdmin:     boolean
     }
   }
+  interface User {
+    id:          string
+    name:        string
+    email:       string
+    avatarColor: string
+    bio:         string
+    isAdmin:     boolean
+  }
 }
 
 declare module 'next-auth/jwt' {
@@ -18,6 +26,7 @@ declare module 'next-auth/jwt' {
     id:          string
     avatarColor: string
     bio:         string
+    name:        string
     isAdmin:     boolean
   }
 }
