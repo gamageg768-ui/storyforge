@@ -139,7 +139,7 @@ export default function ReadingListPage() {
   }, [isLoggedIn])
 
   function handleStatusChange(id: number, newStatus: string) {
-    setStories(prev => prev.map(s => s.id === id ? { ...s, readingStatus: newStatus } : s))
+    setStories(prev => prev.map(s => s.id === id ? { ...s, readingStatus: newStatus as ReadingStory['readingStatus'] } : s))
   }
 
   function handleRemove(id: number) {
