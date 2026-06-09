@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
+@layer base {
+  body {
+    @apply bg-gray-950 text-gray-100 font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+  h1, h2, h3 {
+    font-family: 'Playfair Display', serif;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .prose-reader {
+    @apply text-gray-200 leading-relaxed text-lg;
+    font-family: 'Georgia', serif;
+    line-height: 1.85;
+  }
+  .prose-reader p { @apply mb-5; }
+
+  .font-playfair { font-family: 'Playfair Display', serif; }
+}
+
+/* ── Light / reading mode ─────────────────────────────────── */
+html.light body { background: #f2e8d9 !important; color: #2c1e0f !important; }
+
+html.light .bg-gray-950,
+html.light .bg-gray-900  { background-color: #faf3ea !important; }
+html.light .bg-gray-800  { background-color: #ede2d1 !important; }
+html.light .bg-gray-700  { background-color: #ddd0bb !important; }
+
+html.light .border-gray-800,
+html.light .border-gray-700 { border-color: #d8c9b0 !important; }
+
+html.light .text-white    { color: #2c1e0f !important; }
+html.light .text-gray-100 { color: #2c1e0f !important; }
+html.light .text-gray-200 { color: #3d2b18 !important; }
+html.light .text-gray-300 { color: #5a4332 !important; }
+html.light .text-gray-400 { color: #7a6652 !important; }
+html.light .text-gray-500 { color: #a0896e !important; }
+html.light .text-gray-600 { color: #b5a08a !important; }
+
+html.light .bg-indigo-600 { background-color: #4f46e5 !important; color: #fff !important; }
+html.light .text-indigo-400 { color: #6d28d9 !important; }
+
+html.light nav {
+  background-color: rgba(242,232,217,0.97) !important;
+  border-color: #d8c9b0 !important;
+}
+html.light input,
+html.light textarea,
+html.light select {
+  background-color: #faf3ea !important;
+  color: #2c1e0f !important;
+  border-color: #d8c9b0 !important;
+}
+html.light .prose-reader,
+html.light .prose-reader p { color: #2c1e0f !important; }

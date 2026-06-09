@@ -1,0 +1,351 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  bio          String   @default("")
+  avatarColor  String   @default("#6366f1")
+  isAdmin      Boolean  @default(false)
+  isBanned     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  stories                 Story[]                  @relation("AuthorStories")
+  collaborations          StoryCollaborator[]
+  reactions               Reaction[]
+  comments                Comment[]
+  ratings                 Rating[]
+  following               Follow[]                 @relation("Follower")
+  followers               Follow[]                 @relation("Following")
+  readingList             ReadingList[]
+  authoredChapters        Chapter[]
+  series                  Series[]
+  notifications           Notification[]
+  passwordResetTokens     PasswordResetToken[]
+  sentReports             Report[]                 @relation("Reporter")
+  chapterDrafts           ChapterDraft[]
+  achievements            UserAchievement[]
+  readChapters            ReadChapter[]
+  commentLikes            CommentLike[]
+  highlights              UserHighlight[]
+  featuredStories         FeaturedStory[]
+  notificationPreferences NotificationPreference[]
+}
+
+model Story {
+  id              Int      @id @default(autoincrement())
+  title           String
+  description     String   @default("")
+  genre           String   @default("General")
+  authorId        Int
+  status          String   @default("ongoing")
+  coverColor      String   @default("#6366f1")
+  coverImage      String?
+  isAdult         Boolean  @default(false)
+  contentWarnings String   @default("")
+  tags            String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  author        User                @relation("AuthorStories", fields: [authorId], references: [id])
+  chapters      Chapter[]
+  collaborators StoryCollaborator[]
+  reactions     Reaction[]
+  comments      Comment[]
+  ratings       Rating[]
+  readingList   ReadingList[]
+  seriesEntries SeriesStory[]
+  readChapters  ReadChapter[]
+  highlights    UserHighlight[]
+  featured      FeaturedStory[]
+}
+
+model Chapter {
+  id           Int       @id @default(autoincrement())
+  storyId      Int
+  title        String
+  content      String
+  summary      String    @default("")
+  chapterOrder Int       @default(1)
+  authorId     Int
+  isPublished  Boolean   @default(true)
+  publishAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  story       Story          @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  author      User           @relation(fields: [authorId], references: [id])
+  reactions   Reaction[]
+  comments    Comment[]
+  views       ChapterView[]
+  drafts      ChapterDraft[]
+  readByUsers ReadChapter[]
+  highlights  UserHighlight[]
+}
+
+model StoryCollaborator {
+  id      Int    @id @default(autoincrement())
+  storyId Int
+  userId  Int
+  role    String @default("author")
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([storyId, userId])
+}
+
+model Reaction {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  targetType   String
+  targetId     Int
+  reactionType String
+  createdAt    DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id])
+  story   Story?   @relation(fields: [targetId], references: [id], map: "reaction_story")
+  chapter Chapter? @relation(fields: [targetId], references: [id], map: "reaction_chapter")
+
+  @@unique([userId, targetType, targetId])
+}
+
+model Comment {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  storyId        Int?
+  chapterId      Int?
+  content        String
+  parentId       Int?
+  paragraphIndex Int?
+  selectedText   String?
+  createdAt      DateTime @default(now())
+
+  user    User         @relation(fields: [userId], references: [id])
+  story   Story?       @relation(fields: [storyId], references: [id])
+  chapter Chapter?     @relation(fields: [chapterId], references: [id])
+  parent  Comment?     @relation("Replies", fields: [parentId], references: [id])
+  replies Comment[]    @relation("Replies")
+  likes   CommentLike[]
+}
+
+model Follow {
+  id          Int      @id @default(autoincrement())
+  followerId  Int
+  followingId Int
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Follower", fields: [followerId], references: [id])
+  following User @relation("Following", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+}
+
+model ReadingList {
+  id      Int      @id @default(autoincrement())
+  userId  Int
+  storyId Int
+  status  String   @default("want_to_read")
+  addedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  story Story @relation(fields: [storyId], references: [id])
+
+  @@unique([userId, storyId])
+}
+
+model Rating {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  storyId   Int
+  rating    Int
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  story Story @relation(fields: [storyId], references: [id])
+
+  @@unique([userId, storyId])
+}
+
+model Series {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String   @default("")
+  authorId    Int
+  createdAt   DateTime @default(now())
+
+  author  User          @relation(fields: [authorId], references: [id])
+  stories SeriesStory[]
+}
+
+model SeriesStory {
+  id       Int @id @default(autoincrement())
+  seriesId Int
+  storyId  Int
+  order    Int @default(1)
+
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  story  Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([seriesId, storyId])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  type      String
+  actorId   Int?
+  actorName String?
+  storyId   Int?
+  chapterId Int?
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ChapterView {
+  id        Int      @id @default(autoincrement())
+  chapterId Int
+  userId    Int?
+  viewedAt  DateTime @default(now())
+
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id         Int      @id @default(autoincrement())
+  reporterId Int
+  targetType String
+  targetId   Int
+  reason     String
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+
+  reporter User @relation("Reporter", fields: [reporterId], references: [id])
+}
+
+model RateLimit {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  count     Int      @default(1)
+  expiresAt DateTime
+}
+
+model ChapterDraft {
+  id        Int      @id @default(autoincrement())
+  chapterId Int
+  authorId  Int
+  title     String
+  content   String
+  savedAt   DateTime @default(now())
+
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id])
+
+  @@index([chapterId, savedAt])
+}
+
+model UserAchievement {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  achievement String
+  earnedAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievement])
+}
+
+// ── New models ─────────────────────────────────────────────────────────────
+
+model ReadChapter {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  chapterId   Int
+  storyId     Int
+  completedAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  story   Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, chapterId])
+}
+
+model CommentLike {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  commentId Int
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+}
+
+model UserHighlight {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  chapterId      Int
+  storyId        Int
+  paragraphIndex Int
+  selectedText   String
+  note           String   @default("")
+  color          String   @default("yellow")
+  createdAt      DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  story   Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([userId, chapterId])
+}
+
+model FeaturedStory {
+  id           Int       @id @default(autoincrement())
+  storyId      Int
+  category     String    @default("staff_pick")
+  displayOrder Int       @default(0)
+  addedById    Int
+  expiresAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  story   Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  addedBy User  @relation(fields: [addedById], references: [id])
+
+  @@unique([storyId, category])
+}
+
+model NotificationPreference {
+  id           Int     @id @default(autoincrement())
+  userId       Int
+  type         String
+  emailEnabled Boolean @default(true)
+  inAppEnabled Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+}
