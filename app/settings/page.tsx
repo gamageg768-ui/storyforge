@@ -44,7 +44,7 @@ export default function SettingsPage() {
   // Profile state
   const [username,    setUsername]    = useState('')
   const [bio,         setBio]         = useState('')
-  const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0])
+  const [avatarColor, setAvatarColor] = useState<string>(AVATAR_COLORS[0])
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileMsg,  setProfileMsg]  = useState('')
 

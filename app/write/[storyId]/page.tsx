@@ -15,7 +15,7 @@ export default function EditStoryPage({ params }: { params: { storyId: string } 
   const [description,     setDescription]     = useState('')
   const [genre,           setGenre]           = useState('General')
   const [status,          setStatus]          = useState('ongoing')
-  const [coverColor,      setCoverColor]      = useState(COVER_COLORS[0])
+  const [coverColor,      setCoverColor]      = useState<string>(COVER_COLORS[0])
   const [coverImage,      setCoverImage]      = useState<string | null>(null)
   const [isAdult,         setIsAdult]         = useState(false)
   const [contentWarnings, setContentWarnings] = useState<string[]>([])
