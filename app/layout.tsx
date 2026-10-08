@@ -21,6 +21,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/open-dyslexic-regular.css" />
+      </head>
       <body className={`${inter.variable} ${playfair.variable} bg-gray-950 text-gray-100 min-h-screen antialiased`}>
         <SessionProvider>
           <ThemeProvider>

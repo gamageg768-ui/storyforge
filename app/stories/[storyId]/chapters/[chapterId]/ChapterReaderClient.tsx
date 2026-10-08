@@ -8,27 +8,31 @@ import CommentSection from '@/components/CommentSection'
 import TTSPlayer from '@/components/TTSPlayer'
 import { Chapter, Comment } from '@/types'
 
-type Theme      = 'dark' | 'sepia' | 'paper' | 'oled'
-type FontFamily = 'georgia' | 'system' | 'mono'
+type Theme      = 'dark' | 'sepia' | 'paper' | 'oled' | 'contrast'
+type FontFamily = 'georgia' | 'system' | 'mono' | 'dyslexic'
 
 interface ReaderSettings {
-  fontSize:   number
-  font:       FontFamily
-  lineHeight: number
-  theme:      Theme
+  fontSize:      number
+  font:          FontFamily
+  lineHeight:    number
+  theme:         Theme
+  letterSpacing: number
+  readingRuler:  boolean
 }
 
 const THEMES: Record<Theme, { bg: string; text: string; toolbar: string; border: string; label: string }> = {
-  dark:  { bg: '#030712', text: '#e5e7eb', toolbar: 'bg-gray-900/95',  border: 'border-gray-800', label: 'Dark'  },
-  sepia: { bg: '#fdf6e3', text: '#4a3728', toolbar: 'bg-amber-50/95',  border: 'border-amber-200', label: 'Sepia' },
-  paper: { bg: '#f9fafb', text: '#111827', toolbar: 'bg-gray-50/95',   border: 'border-gray-200', label: 'Paper' },
-  oled:  { bg: '#000000', text: '#d1d5db', toolbar: 'bg-black/95',     border: 'border-gray-900', label: 'OLED'  },
+  dark:     { bg: '#030712', text: '#e5e7eb', toolbar: 'bg-gray-900/95',  border: 'border-gray-800',  label: 'Dark'     },
+  sepia:    { bg: '#fdf6e3', text: '#4a3728', toolbar: 'bg-amber-50/95',  border: 'border-amber-200', label: 'Sepia'    },
+  paper:    { bg: '#f9fafb', text: '#111827', toolbar: 'bg-gray-50/95',   border: 'border-gray-200',  label: 'Paper'    },
+  oled:     { bg: '#000000', text: '#d1d5db', toolbar: 'bg-black/95',     border: 'border-gray-900',  label: 'OLED'     },
+  contrast: { bg: '#000000', text: '#ffffff', toolbar: 'bg-black/95',     border: 'border-yellow-400',label: 'Contrast' },
 }
 
 const FONTS: Record<FontFamily, { css: string; label: string }> = {
-  georgia: { css: 'Georgia, serif',                    label: 'Serif' },
-  system:  { css: 'system-ui, sans-serif',             label: 'Sans'  },
-  mono:    { css: '"Courier New", Courier, monospace', label: 'Mono'  },
+  georgia:  { css: 'Georgia, serif',                    label: 'Serif'    },
+  system:   { css: 'system-ui, sans-serif',             label: 'Sans'     },
+  mono:     { css: '"Courier New", Courier, monospace', label: 'Mono'     },
+  dyslexic: { css: '"OpenDyslexic", sans-serif',        label: 'Dyslexic' },
 }
 
 const LINE_HEIGHTS: { value: number; label: string }[] = [
@@ -37,7 +41,7 @@ const LINE_HEIGHTS: { value: number; label: string }[] = [
   { value: 2.2,  label: 'Relaxed' },
 ]
 
-const DEFAULT_SETTINGS: ReaderSettings = { fontSize: 18, font: 'georgia', lineHeight: 1.85, theme: 'dark' }
+const DEFAULT_SETTINGS: ReaderSettings = { fontSize: 18, font: 'georgia', lineHeight: 1.85, theme: 'dark', letterSpacing: 0, readingRuler: false }
 
 const HIGHLIGHT_COLORS: { id: string; label: string; bg: string; border: string }[] = [
   { id: 'yellow', label: 'Yellow', bg: 'rgba(253,224,71,0.25)',  border: '#fde047' },
@@ -104,6 +108,20 @@ export default function ChapterReaderClient({ chapter, storyId }: { chapter: Cha
   const [editingHighlight,  setEditingHighlight]  = useState<number | null>(null)
   const [editNote,          setEditNote]          = useState('')
 
+  const [rulerY, setRulerY] = useState(0)
+  const [isOffline, setIsOffline]   = useState(false)
+  const [offlineSaved, setOfflineSaved] = useState(false)
+
+  // Reading Room state
+  const [roomOpen,      setRoomOpen]      = useState(false)
+  const [roomCode,      setRoomCode]      = useState<string | null>(null)
+  const [roomData,      setRoomData]      = useState<any>(null)
+  const [roomJoinInput, setRoomJoinInput] = useState('')
+  const [roomChatInput, setRoomChatInput] = useState('')
+  const [followHost,    setFollowHost]    = useState(false)
+  const [roomError,     setRoomError]     = useState('')
+  const [currentPara,   setCurrentPara]   = useState(0)
+
   const settingsRef    = useRef<HTMLDivElement>(null)
   const annotationRef  = useRef<HTMLDivElement>(null)
   const highlightPanelRef = useRef<HTMLDivElement>(null)
@@ -139,6 +157,15 @@ export default function ChapterReaderClient({ chapter, storyId }: { chapter: Cha
       fetch(`/api/stories/${chapter.storyId}/chapters/${chapter.id}/complete`, { method: 'POST' })
         .catch(() => {})
     }
+    // Track current visible paragraph for reading room
+    const paras = document.querySelectorAll('[data-para-index]')
+    for (let i = paras.length - 1; i >= 0; i--) {
+      const rect = paras[i].getBoundingClientRect()
+      if (rect.top < window.innerHeight * 0.5) {
+        setCurrentPara(Number((paras[i] as HTMLElement).dataset.paraIndex ?? 0))
+        break
+      }
+    }
   }, [PROGRESS_KEY, isLoggedIn, chapter.storyId, chapter.id])
 
   useEffect(() => {
@@ -154,6 +181,73 @@ export default function ChapterReaderClient({ chapter, storyId }: { chapter: Cha
   useEffect(() => {
     try { localStorage.setItem('sf_reader_prefs', JSON.stringify(settings)) } catch {}
   }, [settings])
+
+  // Reading ruler follows mouse
+  useEffect(() => {
+    if (!settings.readingRuler) return
+    const onMove = (e: MouseEvent) => setRulerY(e.clientY)
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [settings.readingRuler])
+
+  // Offline detection
+  useEffect(() => {
+    setIsOffline(!navigator.onLine)
+    const goOffline = () => setIsOffline(true)
+    const goOnline  = () => setIsOffline(false)
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online',  goOnline)
+    return () => { window.removeEventListener('offline', goOffline); window.removeEventListener('online', goOnline) }
+  }, [])
+
+  // Check if chapter is already saved offline
+  useEffect(() => {
+    try { setOfflineSaved(!!localStorage.getItem(`sf_offline_${chapter.id}`)) } catch {}
+  }, [chapter.id])
+
+  // Join room from URL param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const roomParam = params.get('room')
+    if (roomParam) { setRoomJoinInput(roomParam.toUpperCase()); setRoomOpen(true) }
+  }, [])
+
+  // Poll room every 2s
+  useEffect(() => {
+    if (!roomCode) return
+    const poll = async () => {
+      try {
+        const data = await fetch(`/api/rooms/${roomCode}`).then(r => r.json())
+        if (data.error) { setRoomCode(null); setRoomData(null); return }
+        setRoomData(data)
+        if (followHost && data.hostId) {
+          const host = data.participants?.find((p: any) => p.userId === data.hostId)
+          if (host) scrollToParagraph(host.cursorParagraph)
+        }
+      } catch {}
+    }
+    poll()
+    const id = setInterval(poll, 2000)
+    return () => clearInterval(id)
+  }, [roomCode, followHost])
+
+  // Broadcast paragraph position every 1s while in a room
+  useEffect(() => {
+    if (!roomCode) return
+    const id = setInterval(() => {
+      fetch(`/api/rooms/${roomCode}/event`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'position', paragraph: currentPara }),
+      }).catch(() => {})
+    }, 1000)
+    return () => clearInterval(id)
+  }, [roomCode, currentPara])
+
+  function scrollToParagraph(index: number) {
+    const el = document.querySelector(`[data-para-index="${index}"]`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
 
   // Close settings panel on outside click
   useEffect(() => {
@@ -346,6 +440,66 @@ export default function ChapterReaderClient({ chapter, storyId }: { chapter: Cha
     (acc, c) => { acc[c.id] = c; return acc }, {}
   )
 
+  async function startRoom() {
+    setRoomError('')
+    const res = await fetch('/api/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storyId, chapterId: chapter.id }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setRoomCode(data.code)
+    } else {
+      setRoomError('Failed to create room')
+    }
+  }
+
+  async function joinRoom() {
+    const code = roomJoinInput.trim().toUpperCase()
+    if (!code) return
+    setRoomError('')
+    const res = await fetch(`/api/rooms/${code}`)
+    if (res.ok) {
+      const data = await res.json()
+      if (data.chapterId !== chapter.id) {
+        setRoomError('This room is for a different chapter')
+        return
+      }
+      setRoomCode(code)
+      setRoomData(data)
+    } else {
+      setRoomError('Room not found or closed')
+    }
+  }
+
+  async function leaveRoom() {
+    if (!roomCode) return
+    await fetch(`/api/rooms/${roomCode}/leave`, { method: 'POST' }).catch(() => {})
+    setRoomCode(null)
+    setRoomData(null)
+    setFollowHost(false)
+  }
+
+  async function sendChat(e: React.FormEvent) {
+    e.preventDefault()
+    if (!roomCode || !roomChatInput.trim()) return
+    await fetch(`/api/rooms/${roomCode}/event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'chat', content: roomChatInput }),
+    }).catch(() => {})
+    setRoomChatInput('')
+  }
+
+  async function saveOffline() {
+    try {
+      await fetch(`/api/stories/${storyId}/chapters/${chapter.id}`)
+      localStorage.setItem(`sf_offline_${chapter.id}`, '1')
+      setOfflineSaved(true)
+    } catch {}
+  }
+
   // Annotation popover position (clamped to viewport)
   const popoverLeft = pendingAnnotation
     ? Math.min(Math.max(8, pendingAnnotation.rect.centerX - 144), (typeof window !== 'undefined' ? window.innerWidth : 800) - 296)
@@ -353,6 +507,20 @@ export default function ChapterReaderClient({ chapter, storyId }: { chapter: Cha
 
   return (
     <main className="min-h-screen transition-colors duration-200" style={{ backgroundColor: theme.bg, color: theme.text }}>
+      {/* Reading ruler */}
+      {settings.readingRuler && (
+        <div
+          className="fixed left-0 right-0 pointer-events-none z-50"
+          style={{ top: rulerY - 20, height: 40, backgroundColor: 'rgba(253,224,71,0.15)', borderTop: '1px solid rgba(253,224,71,0.4)', borderBottom: '1px solid rgba(253,224,71,0.4)' }}
+        />
+      )}
+      {/* Offline banner */}
+      {isOffline && (
+        <div className="bg-amber-900/80 text-amber-200 text-xs text-center py-1.5 px-4">
+          Offline — reading cached version
+        </div>
+      )}
+
       {/* Sticky toolbar */}
       <div className={`sticky top-16 z-30 ${theme.toolbar} backdrop-blur border-b ${theme.border}`}>
         <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
@@ -493,6 +661,28 @@ export default function ChapterReaderClient({ chapter, storyId }: { chapter: Cha
               </div>
             )}
 
+            {/* Save for offline */}
+            <button
+              onClick={saveOffline}
+              className={`w-7 h-7 flex items-center justify-center rounded text-xs transition ${offlineSaved ? 'text-green-400 opacity-100' : 'opacity-60 hover:opacity-100'}`}
+              style={{ backgroundColor: 'rgba(128,128,128,0.2)' }}
+              title={offlineSaved ? 'Saved offline' : 'Save for offline reading'}
+            >
+              {offlineSaved ? '✓' : '⤓'}
+            </button>
+
+            {/* Reading Room */}
+            {isLoggedIn && (
+              <button
+                onClick={() => setRoomOpen(o => !o)}
+                className={`w-7 h-7 flex items-center justify-center rounded text-xs transition ${roomOpen ? 'bg-indigo-600 text-white opacity-100' : 'opacity-60 hover:opacity-100'}`}
+                style={roomOpen ? {} : { backgroundColor: 'rgba(128,128,128,0.2)' }}
+                title="Reading Room"
+              >
+                👥
+              </button>
+            )}
+
             {/* Settings panel */}
             <div className="relative" ref={settingsRef}>
               <button
@@ -550,7 +740,7 @@ export default function ChapterReaderClient({ chapter, storyId }: { chapter: Cha
                   </div>
 
                   {/* Line height */}
-                  <div>
+                  <div className="mb-4">
                     <p className="text-xs font-medium opacity-50 mb-2 uppercase tracking-wider">Line Spacing</p>
                     <div className="flex gap-1.5">
                       {LINE_HEIGHTS.map(lh => (
@@ -567,6 +757,39 @@ export default function ChapterReaderClient({ chapter, storyId }: { chapter: Cha
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Letter spacing */}
+                  <div className="mb-4">
+                    <p className="text-xs font-medium opacity-50 mb-2 uppercase tracking-wider">Letter Spacing</p>
+                    <div className="flex gap-1.5">
+                      {([{ v: 0, label: 'Normal' }, { v: 0.05, label: 'Wide' }, { v: 0.1, label: 'Wider' }] as const).map(s => (
+                        <button
+                          key={s.v}
+                          onClick={() => updateSetting('letterSpacing', s.v)}
+                          className={`flex-1 py-1.5 rounded text-xs transition border ${
+                            settings.letterSpacing === s.v
+                              ? 'border-indigo-500 text-indigo-400'
+                              : 'border-gray-600 opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Accessibility toggles */}
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="text-xs opacity-60">Reading Ruler</span>
+                      <button
+                        onClick={() => updateSetting('readingRuler', !settings.readingRuler)}
+                        className={`relative w-9 h-5 rounded-full transition-colors ${settings.readingRuler ? 'bg-indigo-600' : 'bg-gray-600'}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${settings.readingRuler ? 'translate-x-4' : ''}`} />
+                      </button>
+                    </label>
                   </div>
                 </div>
               )}
@@ -619,7 +842,7 @@ export default function ChapterReaderClient({ chapter, storyId }: { chapter: Cha
           className="prose-reader relative"
           onCopy={e => e.preventDefault()}
           onMouseUp={handleProseMouseUp}
-          style={{ fontSize: `${settings.fontSize}px` }}
+          style={{ fontSize: `${settings.fontSize}px`, letterSpacing: settings.letterSpacing > 0 ? `${settings.letterSpacing}em` : undefined }}
         >
           {/* Watermark overlay */}
           <div
@@ -875,6 +1098,131 @@ export default function ChapterReaderClient({ chapter, storyId }: { chapter: Cha
                   className="text-xs text-gray-500 hover:text-white px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 transition"
                 >
                   Back
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Reading Room Panel */}
+      {roomOpen && isLoggedIn && (
+        <div className="fixed right-0 top-16 bottom-0 w-80 bg-gray-950 border-l border-gray-800 z-40 flex flex-col shadow-2xl">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+            <span className="text-sm font-semibold text-white">👥 Reading Room</span>
+            <button onClick={() => setRoomOpen(false)} className="text-gray-500 hover:text-gray-300 text-lg">×</button>
+          </div>
+
+          {!roomCode ? (
+            <div className="p-4 space-y-4">
+              <button
+                onClick={startRoom}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium py-2.5 rounded-lg transition"
+              >
+                Start a Room
+              </button>
+              <div className="relative flex items-center gap-2">
+                <span className="text-xs text-gray-600 shrink-0">or join</span>
+                <div className="flex-1 h-px bg-gray-800" />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={roomJoinInput}
+                  onChange={e => setRoomJoinInput(e.target.value.toUpperCase())}
+                  placeholder="Room code"
+                  maxLength={6}
+                  className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500 font-mono"
+                />
+                <button
+                  onClick={joinRoom}
+                  className="bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm px-3 py-2 rounded-lg transition"
+                >
+                  Join
+                </button>
+              </div>
+              {roomError && <p className="text-xs text-red-400">{roomError}</p>}
+            </div>
+          ) : (
+            <>
+              {/* Room code */}
+              <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Room code (share to invite)</p>
+                  <p className="font-mono text-lg font-bold text-indigo-400 tracking-widest">{roomCode}</p>
+                </div>
+                <button
+                  onClick={() => navigator.clipboard?.writeText(roomCode)}
+                  className="text-xs text-gray-600 hover:text-gray-400 transition"
+                >
+                  Copy
+                </button>
+              </div>
+
+              {/* Participants */}
+              <div className="px-4 py-3 border-b border-gray-800">
+                <p className="text-xs text-gray-500 mb-2">Readers ({roomData?.participants?.length ?? 1})</p>
+                <div className="space-y-1.5">
+                  {(roomData?.participants ?? []).map((p: any) => (
+                    <div key={p.userId} className="flex items-center gap-2">
+                      <span
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] text-white font-bold shrink-0"
+                        style={{ backgroundColor: p.avatarColor }}
+                      >
+                        {p.username[0].toUpperCase()}
+                      </span>
+                      <span className="text-xs text-gray-300 flex-1 truncate">
+                        {p.username}
+                        {p.userId === roomData?.hostId && <span className="text-indigo-400 ml-1">★</span>}
+                      </span>
+                      <span className="text-xs text-gray-600">¶{p.cursorParagraph + 1}</span>
+                    </div>
+                  ))}
+                </div>
+                <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={followHost}
+                    onChange={e => setFollowHost(e.target.checked)}
+                    className="accent-indigo-600"
+                  />
+                  <span className="text-xs text-gray-500">Follow host&apos;s position</span>
+                </label>
+              </div>
+
+              {/* Chat */}
+              <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+                {(roomData?.messages ?? []).map((m: any) => (
+                  <div key={m.id} className="text-xs">
+                    <span
+                      className="font-medium mr-1"
+                      style={{ color: m.avatarColor }}
+                    >
+                      {m.username}:
+                    </span>
+                    <span className="text-gray-300">{m.content}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Chat input */}
+              <form onSubmit={sendChat} className="px-3 py-3 border-t border-gray-800 flex gap-2">
+                <input
+                  value={roomChatInput}
+                  onChange={e => setRoomChatInput(e.target.value)}
+                  placeholder="Say something…"
+                  maxLength={500}
+                  className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500"
+                />
+                <button type="submit" className="text-indigo-400 hover:text-indigo-300 text-xs transition">Send</button>
+              </form>
+
+              {/* Leave */}
+              <div className="px-3 pb-3">
+                <button
+                  onClick={leaveRoom}
+                  className="w-full text-xs text-gray-600 hover:text-red-400 py-1.5 transition"
+                >
+                  {roomData?.hostId === Number(user?.id) ? 'Close Room' : 'Leave Room'}
                 </button>
               </div>
             </>

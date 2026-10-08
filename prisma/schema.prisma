@@ -39,6 +39,18 @@ model User {
   highlights              UserHighlight[]
   featuredStories         FeaturedStory[]
   notificationPreferences NotificationPreference[]
+  shelves                 Shelf[]
+  challengeEntries        ChallengeEntry[]
+  hostedRooms             ReadingRoom[]
+  roomParticipations      ReadingRoomParticipant[]
+  roomMessages            ReadingRoomMessage[]
+  tipsSent                TipTransaction[]         @relation("TipsSent")
+  tipsReceived            TipTransaction[]         @relation("TipsReceived")
+  supporterTier           SupporterTier?
+  supporterSubscriptions  SupporterSubscription[]
+  commissionListing       CommissionListing?
+  commissionsSent         CommissionRequest[]      @relation("CommissionsSent")
+  commissionsReceived     CommissionRequest[]      @relation("CommissionsReceived")
 }
 
 model Story {
@@ -67,6 +79,8 @@ model Story {
   readChapters  ReadChapter[]
   highlights    UserHighlight[]
   featured      FeaturedStory[]
+  shelves       ShelfStory[]
+  readingRooms  ReadingRoom[]
 }
 
 model Chapter {
@@ -89,6 +103,7 @@ model Chapter {
   drafts      ChapterDraft[]
   readByUsers ReadChapter[]
   highlights  UserHighlight[]
+  readingRooms ReadingRoom[]
 }
 
 model StoryCollaborator {
@@ -348,4 +363,186 @@ model NotificationPreference {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, type])
+}
+
+// ── Feature 5: Reading Challenges ──────────────────────────────────────────
+
+model ReadingChallenge {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  goal        Int
+  goalType    String   // "stories" | "chapters"
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+
+  entries ChallengeEntry[]
+}
+
+model ChallengeEntry {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  challengeId Int
+  progress    Int      @default(0)
+  joinedAt    DateTime @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge ReadingChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, challengeId])
+}
+
+// ── Feature 6: Story Collections / Shelves ─────────────────────────────────
+
+model Shelf {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  title       String
+  description String   @default("")
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stories ShelfStory[]
+}
+
+model ShelfStory {
+  shelfId Int
+  storyId Int
+  addedAt DateTime @default(now())
+
+  shelf Shelf @relation(fields: [shelfId], references: [id], onDelete: Cascade)
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([shelfId, storyId])
+}
+
+// ── Feature 13: Social Reading Rooms ───────────────────────────────────────
+
+model ReadingRoom {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  storyId   Int
+  chapterId Int
+  hostId    Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  host         User                     @relation(fields: [hostId], references: [id])
+  story        Story                    @relation(fields: [storyId], references: [id])
+  chapter      Chapter                  @relation(fields: [chapterId], references: [id])
+  participants ReadingRoomParticipant[]
+  messages     ReadingRoomMessage[]
+}
+
+model ReadingRoomParticipant {
+  id              Int      @id @default(autoincrement())
+  roomId          Int
+  userId          Int
+  cursorParagraph Int      @default(0)
+  lastSeen        DateTime @default(now())
+
+  room ReadingRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id])
+
+  @@unique([roomId, userId])
+}
+
+model ReadingRoomMessage {
+  id        Int      @id @default(autoincrement())
+  roomId    Int
+  userId    Int
+  content   String
+  createdAt DateTime @default(now())
+
+  room ReadingRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id])
+}
+
+// ── Feature 1: Author Tip Jar ───────────────────────────────────────────────
+
+model TipTransaction {
+  id              Int      @id @default(autoincrement())
+  fromUserId      Int
+  toAuthorId      Int
+  amount          Int      // in cents
+  currency        String   @default("usd")
+  message         String   @default("")
+  stripeSessionId String   @unique
+  status          String   @default("pending") // pending | completed | failed
+  createdAt       DateTime @default(now())
+
+  fromUser User @relation("TipsSent",     fields: [fromUserId],  references: [id])
+  toAuthor User @relation("TipsReceived", fields: [toAuthorId],  references: [id])
+}
+
+// ── Feature 2: Early Access / Supporter Tiers ──────────────────────────────
+
+model SupporterTier {
+  id              Int      @id @default(autoincrement())
+  authorId        Int      @unique
+  name            String
+  description     String   @default("")
+  priceMonthly    Int      // in cents
+  earlyAccessDays Int      @default(7)
+  stripePriceId   String   @unique
+  stripeProductId String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  author        User                    @relation(fields: [authorId], references: [id])
+  subscriptions SupporterSubscription[]
+}
+
+model SupporterSubscription {
+  id                   Int      @id @default(autoincrement())
+  userId               Int
+  tierId               Int
+  stripeSubscriptionId String   @unique
+  stripeCustomerId     String
+  status               String   @default("active") // active | canceled | past_due
+  currentPeriodEnd     DateTime
+  createdAt            DateTime @default(now())
+
+  user User          @relation(fields: [userId], references: [id])
+  tier SupporterTier @relation(fields: [tierId], references: [id])
+}
+
+// ── Feature 3: Commission Board ─────────────────────────────────────────────
+
+model CommissionListing {
+  id          Int      @id @default(autoincrement())
+  authorId    Int      @unique
+  title       String
+  description String
+  priceMin    Int      @default(0)
+  priceMax    Int      @default(0)
+  genres      String   @default("")
+  turnaround  String   @default("")
+  isOpen      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  author   User               @relation(fields: [authorId], references: [id])
+  requests CommissionRequest[]
+}
+
+model CommissionRequest {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  authorId    Int
+  listingId   Int?
+  title       String
+  description String
+  budget      Int      @default(0)
+  status      String   @default("pending") // pending | accepted | declined | delivered
+  authorNote  String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User               @relation("CommissionsSent",     fields: [userId],   references: [id])
+  author  User               @relation("CommissionsReceived", fields: [authorId],  references: [id])
+  listing CommissionListing? @relation(fields: [listingId], references: [id])
 }

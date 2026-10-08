@@ -14,15 +14,34 @@ export async function GET(req: Request, { params }: { params: { storyId: string;
   })
   if (!chapter || chapter.storyId !== storyId) return Response.json({ error: 'Not found' }, { status: 404 })
 
-  // Block unpublished/scheduled chapters for non-collaborators
+  // Block unpublished/scheduled chapters for non-collaborators / non-subscribers
   const isScheduled = chapter.publishAt && chapter.publishAt > new Date()
+  let isEarlyAccess = false
+
   if (!chapter.isPublished || isScheduled) {
     const collab = userId
       ? await prisma.storyCollaborator.findUnique({
           where: { storyId_userId: { storyId, userId } },
         })
       : null
-    if (!collab) return Response.json({ error: 'Not found' }, { status: 404 })
+
+    if (!collab && isScheduled && userId) {
+      // Check if user is an active supporter of this chapter's story author
+      const authorId = (await prisma.story.findUnique({ where: { id: storyId }, select: { authorId: true } }))?.authorId
+      if (authorId) {
+        const sub = await prisma.supporterSubscription.findFirst({
+          where: {
+            userId,
+            tier: { authorId },
+            status: { in: ['active', 'past_due'] },
+            currentPeriodEnd: { gt: new Date() },
+          },
+        })
+        if (sub) isEarlyAccess = true
+      }
+    }
+
+    if (!collab && !isEarlyAccess) return Response.json({ error: 'Not found' }, { status: 404 })
   }
 
   const prev = await prisma.chapter.findFirst({
@@ -51,6 +70,7 @@ export async function GET(req: Request, { params }: { params: { storyId: string;
     createdAt:    chapter.createdAt,
     prevChapter:  prev ?? null,
     nextChapter:  next ?? null,
+    isEarlyAccess,
   })
 }
 

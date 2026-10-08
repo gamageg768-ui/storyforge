@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { updateChallengeProgress } from '@/lib/challenges'
 
 export async function POST(
   _req: Request,
@@ -17,6 +18,10 @@ export async function POST(
     update: { completedAt: new Date() },
     create: { userId, chapterId, storyId },
   })
+
+  // Update any active reading challenges (fire-and-forget)
+  updateChallengeProgress(userId, 'chapters').catch(() => {})
+  updateChallengeProgress(userId, 'stories').catch(() => {})
 
   return Response.json({ completed: true })
 }

@@ -26,6 +26,9 @@ export default function StoryDetailClient({ story: initialStory }: { story: Stor
   const [collabMsg,    setCollabMsg]    = useState('')
   const [adultDismissed,  setAdultDismissed]  = useState(false)
   const [recommendations, setRecommendations] = useState<any[]>([])
+  const [shelfModalOpen,  setShelfModalOpen]  = useState(false)
+  const [userShelves,     setUserShelves]     = useState<any[]>([])
+  const [shelfMsg,        setShelfMsg]        = useState('')
   const [reportReason,    setReportReason]    = useState('')
   const [reportSent,      setReportSent]      = useState(false)
   const [showReport,      setShowReport]      = useState(false)
@@ -42,6 +45,24 @@ export default function StoryDetailClient({ story: initialStory }: { story: Stor
       .then(r => r.json())
       .then(data => setRecommendations(Array.isArray(data) ? data : []))
   }, [story.id])
+
+  // Load user shelves when modal opens
+  useEffect(() => {
+    if (!shelfModalOpen || !isLoggedIn) return
+    fetch('/api/shelves')
+      .then(r => r.json())
+      .then(data => setUserShelves(Array.isArray(data) ? data : []))
+  }, [shelfModalOpen, isLoggedIn])
+
+  async function addToShelf(shelfId: number) {
+    const res = await fetch(`/api/shelves/${shelfId}/stories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storyId: story.id }),
+    })
+    setShelfMsg(res.ok ? 'Added!' : 'Already on this shelf')
+    setTimeout(() => setShelfMsg(''), 2000)
+  }
 
   // Check reading progress
   useEffect(() => {
@@ -265,6 +286,37 @@ export default function StoryDetailClient({ story: initialStory }: { story: Stor
                 }`}>
                 {inLibrary ? '✅ In Library' : '+ Add to Library'}
               </button>
+              {isLoggedIn && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShelfModalOpen(o => !o)}
+                    className="px-4 py-2.5 rounded-lg border border-gray-600 bg-gray-800/50 text-gray-300 hover:border-gray-500 font-medium transition text-sm"
+                  >
+                    📚 Save to Shelf
+                  </button>
+                  {shelfModalOpen && (
+                    <div className="absolute left-0 top-full mt-2 w-64 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 p-3">
+                      <p className="text-xs font-medium text-gray-400 mb-2">Add to shelf</p>
+                      {userShelves.length === 0 ? (
+                        <p className="text-xs text-gray-600 py-2">No shelves yet. <Link href="/shelves" className="text-indigo-400 hover:underline">Create one →</Link></p>
+                      ) : (
+                        <div className="space-y-1">
+                          {userShelves.map((s: any) => (
+                            <button
+                              key={s.id}
+                              onClick={() => addToShelf(s.id)}
+                              className="w-full text-left text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-2 py-1.5 rounded transition"
+                            >
+                              {s.title} <span className="text-gray-600 text-xs">({s._count.stories})</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {shelfMsg && <p className="text-xs text-indigo-400 mt-2">{shelfMsg}</p>}
+                    </div>
+                  )}
+                </div>
+              )}
               {isOwner && (
                 <Link href={`/write/${story.id}`}
                   className="bg-gray-800/50 border border-gray-600 hover:border-gray-500 text-gray-300 px-4 py-2.5 rounded-lg text-sm transition">
@@ -381,7 +433,7 @@ export default function StoryDetailClient({ story: initialStory }: { story: Stor
           {/* Recommendations */}
           {recommendations.length > 0 && (
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">More {story.genre} Stories</h2>
+              <h2 className="text-lg font-semibold text-white mb-4">You Might Also Like</h2>
               <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {recommendations.map(r => (
                   <StoryCard key={r.id} story={r} compact />
