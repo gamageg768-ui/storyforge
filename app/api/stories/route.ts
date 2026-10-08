@@ -48,7 +48,7 @@ export async function GET(req: Request) {
       where,
       include: {
         author:  { select: { username: true, avatarColor: true } },
-        _count:  { select: { chapters: true, reactions: true, comments: true, ratings: true } },
+        _count:  { select: { chapters: { where: { isPublished: true, OR: [{ publishAt: null }, { publishAt: { lte: new Date() } }] } }, reactions: true, comments: true, ratings: true } },
         ratings: { select: { rating: true } },
       },
       orderBy: sortMap[sort] || { updatedAt: 'desc' },

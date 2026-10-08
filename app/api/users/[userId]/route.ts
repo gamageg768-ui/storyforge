@@ -12,7 +12,7 @@ export async function GET(req: Request, { params }: { params: { userId: string }
       stories: {
         include: {
           author:  { select: { username: true, avatarColor: true } },
-          _count:  { select: { chapters: true, reactions: true, comments: true } },
+          _count:  { select: { chapters: { where: { isPublished: true, OR: [{ publishAt: null }, { publishAt: { lte: new Date() } }] } }, reactions: true, comments: true } },
           ratings: { select: { rating: true } },
         },
         orderBy: { createdAt: 'desc' },
