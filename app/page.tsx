@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import StoryCard from '@/components/StoryCard'
@@ -45,7 +45,7 @@ interface ContinueItem {
   nextChapterOrder: number
 }
 
-export default function HomePage() {
+function HomePageInner() {
   const { isLoggedIn, user } = useAuth()
   const searchParams = useSearchParams()
   const searchQuery  = searchParams.get('search') || ''
@@ -396,5 +396,13 @@ export default function HomePage() {
         )}
       </div>
     </main>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <Suspense>
+      <HomePageInner />
+    </Suspense>
   )
 }

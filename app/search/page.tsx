@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { GENRES, Story } from '@/types'
@@ -38,7 +38,7 @@ const STATUS_OPTIONS = [
   { value: 'hiatus',    label: 'Hiatus'      },
 ]
 
-export default function SearchPage() {
+function SearchPageInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
 
@@ -267,5 +267,13 @@ export default function SearchPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense>
+      <SearchPageInner />
+    </Suspense>
   )
 }
