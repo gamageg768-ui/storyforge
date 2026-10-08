@@ -1,10 +1,14 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'
 const FROM    = 'StoryForge <onboarding@resend.dev>'
 
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY)
+}
+
 export async function sendPasswordResetEmail(email: string, token: string) {
+  const resend = getResend()
   const resetUrl = `${APP_URL}/reset-password?token=${token}`
 
   await resend.emails.send({
@@ -34,6 +38,7 @@ export async function sendNewChapterEmail(opts: {
   chapterId:    number
   storyId:      number
 }) {
+  const resend = getResend()
   const { to, authorName, storyTitle, chapterTitle, chapterId, storyId } = opts
   const chapterUrl = `${APP_URL}/stories/${storyId}/chapters/${chapterId}`
   const unsubUrl   = `${APP_URL}/settings`
