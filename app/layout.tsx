@@ -16,6 +16,10 @@ export const metadata: Metadata = {
   title: 'StoryForge — Collaborative Fiction Platform',
   description: 'Discover, write, and collaborate on stories with readers around the world.',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/icons/icon-192.png',
+    apple: '/icons/icon-192.png',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
